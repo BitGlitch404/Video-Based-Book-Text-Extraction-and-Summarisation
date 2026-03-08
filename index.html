@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Video Based Text Extraction System</title>
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <body>
+        <div class="app">
+            <div class="leftPanel" id="leftPanel" style="display: none; flex-direction: column; align-items: center;">
+                <div class="verticalScrubber" id="Scrubber">
+                    <div class="scrubberTrack"></div>
+                    <div id="zoomSelection" style="position:absolute; background:rgba(0, 170, 255, 0.3); width:100%; display:none; pointer-events:none; left:0;"></div>
+                </div>
+                <button class="zoomBtn" id="zoomBtn">🔍 Zoom Tool</button>
+                <button class="zoomBtn" id="resetZoom" style="margin-top:5px; background:#442222; display:none; width:100%;">↺ Reset</button>
+            </div>
+
+            <div class="centerPanel" id="centerPanel">
+                <div class="dragMessage" id="dragMessage">
+                    <h2>Drag and drop a video file here to begin</h2>
+                    <p style="font-size:0.9em; opacity:0.8;">Click on the timeline to add frame markers • Drag to adjust • Click X to remove</p>
+                </div>
+                <video id="Video" controls style="display: none;"></video>
+            </div>
+
+            <div class="rightPanel" id="rightPanel" style="display: none;">
+                <h3>Selected Frames: <span id="frameCount">0</span></h3>
+                <div id="timestampList"></div>
+                
+                <button type="button" id="continueBtn">Continue → OCR</button>
+            </div>
+        </div>
+
+        <script src="script.js"></script>
+    </body>
+</html>

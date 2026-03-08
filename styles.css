@@ -1,0 +1,217 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #0d0d0d;
+    color: #eee;
+}
+
+.app {
+    display: flex;
+    height: 100vh;
+    gap: 20px;
+    padding: 20px;
+}
+
+.leftPanel {
+    width: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.verticalScrubber {
+    position: relative;
+    height: 60vh; /* Reduced from 80vh to make room for buttons */
+    width: 60px;
+    background: #1e1e1e;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid #333;
+    margin-bottom: 15px; /* Space for the button below */
+}
+
+/* Scrubber line adjustment */
+.thumbnailMarker {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 2px; /* Thin line */
+    background: #ffffff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+    z-index: 10;
+}
+
+/* Zoom Button Styling */
+.zoomBtn {
+    width: 100%;
+    padding: 8px;
+    background: #333;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.zoomBtn:hover {
+    background: #444;
+    border-color: #00aaff;
+}
+
+.scrubberTrack {
+    position: absolute;
+    left: 50%;
+    top: 10px;
+    bottom: 10px;
+    transform: translateX(-50%);
+    width: 4px;
+    background: #444;
+    border-radius: 2px;
+}
+
+.thumbnailMarker:hover {
+    background: #00aaff; /* Blue highlight on hover */
+    height: 3px;         /* Slightly thicker on hover for easier grabbing */
+}
+
+/* Minimalist Close Button */
+.closeBtn {
+    position: absolute;
+    right: -25px;       /* Hangs off the right side so it doesn't block the line */
+    width: 20px;
+    height: 20px;
+    background: #ff4444;
+    color: white;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    opacity: 0.6;
+}
+
+.thumbnailMarker:hover .closeBtn {
+    opacity: 1;
+}
+
+.closeBtn:hover {
+    background: #ff0000;
+}
+
+.centerPanel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-size: 1.2em;
+    opacity: 0.9;
+}
+
+.dragMessage {
+    max-width: 600px;
+}
+
+video {
+    width: 100%;
+    max-height: 80vh;
+    border-radius: 8px;
+    background: #000;
+    margin-bottom: 20px;
+}
+
+.rightPanel {
+    width: 350px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+    background: #111;
+    border-radius: 12px;
+}
+
+#continueBtn {
+    padding: 14px;
+    font-size: 1.1em;
+    background: #00aaff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: auto;
+}
+
+#continueBtn:disabled {
+    background: #333;
+    cursor: not-allowed;
+}
+
+#continueBtn:not(:disabled):hover {
+    background: #0088cc;
+}
+
+#timestampList {
+    flex: 1;
+    font-size: 0.9em;
+    opacity: 0.8;
+    overflow-y: auto;
+}
+
+/* Container for the results to add some spacing */
+#timestampList {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* The Modern Download Button */
+.download-style {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    border: none;
+    padding: 14px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.download-style:hover {
+    background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+}
+
+.download-style:active {
+    transform: translateY(0);
+}
+
+/* Style for the OCR result text items below the button */
+.result-item {
+    background: #f8f9fa;
+    border-left: 4px solid #007bff;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 0.95em;
+    color: #333;
+    line-height: 1.4;
+}
