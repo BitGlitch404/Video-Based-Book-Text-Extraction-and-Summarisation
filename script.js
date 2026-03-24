@@ -5,6 +5,21 @@ let selectingZoom = false;
 let selectionStartY = 0;
 const TRACK_PADDING = 5;
 
+const PDF_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; vertical-align: middle;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="9" y1="15" x2="12" y2="15"></line><line x1="9" y1="19" x2="15" y2="19"></line><line x1="9" y1="11" x2="11" y2="11"></line></svg>`;
+const DOC_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; vertical-align: middle;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+const AI_ICON = `<svg xmlns="http://www.w3.org/2000/svg" class="ai-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12L2.69 15.5"></path><path d="M12 12l9.31 3.5"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+
+
+const CONFIG = {
+    SAMPLE_EVERY: 5,      // Process every 5th frame
+    MOTION_HIGH: 25,      // Skip if too much movement (page turning)
+    MOTION_LOW: 3,        // Skip if too little movement (static page)
+    SHARPNESS_MIN: 300,   // Minimum variance for text clarity
+    COOLDOWN_FRAMES: 75,  // Min frames between saves
+    THUMB_W: 160,         // Small width for fast math
+    THUMB_H: 90
+};
+
 const zoomBtn = document.getElementById('zoomBtn');
 const resetBtn = document.getElementById('resetZoom');
 const zoomSelectionDiv = document.getElementById('zoomSelection');
@@ -46,6 +61,7 @@ function createMarker(percentage = 0) {
     // Events
     marker.addEventListener('mousedown', (e) => {
         if (e.target === closeBtn) return; // Don't drag if clicking close
+        e.preventDefault(); // <--- ADD THIS: Stops browser from "ghost dragging"
         isDragging = true;
         draggedMarker = marker;
         e.stopPropagation();
@@ -95,10 +111,6 @@ function updateUI() {
     });
 }
 
-
-
-
-
 // Toggle Zoom Tool
 zoomBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -135,14 +147,11 @@ function refreshAllMarkers() {
 function updateMarkerPosition(marker, globalPercentage) {
     const relativePercentage = ((globalPercentage - zoomStart) / (zoomEnd - zoomStart)) * 100;
     const usableHeight = scrubber.offsetHeight - (TRACK_PADDING * 2);
-    const top = TRACK_PADDING + (relativePercentage / 100) * usableHeight;
-    marker.style.top = `${top}px`;
+    const y = globalPercentToY(globalPercentage);
+    marker.style.top = `${y}px`;
+    // Hide marker if it's outside the zoomed range
+    marker.style.display = (y < 0 || y > scrubber.offsetHeight) ? 'none' : 'flex';
 }
-
-
-
-
-
 
 // Get all selected timestamps in seconds (sorted)
 function getSelectedTimestamps() {
@@ -153,27 +162,44 @@ function getSelectedTimestamps() {
 }
 
 // Dragging logic
+let wasDragging = false; // Flag to prevent click event after drag
+
 document.addEventListener('mousemove', (e) => {
     if (!isDragging || !draggedMarker) return;
+    wasDragging = true;
 
     const rect = scrubber.getBoundingClientRect();
-    const usableHeight = rect.height - (TRACK_PADDING * 2);
-    const offsetY = e.clientY - rect.top - TRACK_PADDING; // center marker
 
-    let percentage = (offsetY / usableHeight) * 100;
-    percentage = Math.max(0, Math.min(100, percentage));
+    let y = e.clientY - rect.top;
+    y = Math.max(0, Math.min(rect.height, y));
+    const globalP = yToGlobalPercent(y);
 
-    updateMarkerPosition(draggedMarker, percentage);
+    const markerData = markers.find(m => m.element === draggedMarker);
+    if (markerData) {
+        markerData.percentage = globalP;
+    }
+
+    updateMarkerPosition(draggedMarker, globalP);
     updateUI();
 
      // --- NEW: Live sync video while dragging ---
     if (video.duration) {
-        video.currentTime = (percentage / 100) * video.duration;
+        video.currentTime = (globalP / 100) * video.duration;
     }
 });
 
 document.addEventListener('mouseup', (e) => {
 
+    if (isDragging) {
+    isDragging = false;
+    draggedMarker = null;
+    
+    // Use a tiny timeout to reset wasDragging 
+    // This ensures the 'click' event fires and sees 'wasDragging = true' before it resets
+    setTimeout(() => { wasDragging = false; }, 50); 
+    }
+    
+    
     if (selectingZoom) {
         selectingZoom = false;
         zoomSelectionDiv.style.display = 'none';
@@ -190,11 +216,14 @@ document.addEventListener('mouseup', (e) => {
             
             zoomStart = globalStart;
             zoomEnd = globalEnd;
-            
+
+            generateFilmstrip(); // Refresh background to match new zoom
+            refreshAllMarkers(); // Reposition existing markers
+
             resetBtn.style.display = 'block';
             isZoomMode = false;
             zoomBtn.style.background = "#333";
-            zoomBtn.textContent = "🔍 Zoom Tool";
+            zoomBtn.textContent = "Zoom Tool";
             refreshAllMarkers();
         }
     }
@@ -208,6 +237,8 @@ document.addEventListener('mouseup', (e) => {
 // Click on scrubber to add new marker
 scrubber.addEventListener('click', (e) => {
 
+    if (wasDragging) return;
+
     const rect = scrubber.getBoundingClientRect();
     const clickY = e.clientY - rect.top;
 
@@ -219,15 +250,17 @@ scrubber.addEventListener('click', (e) => {
         zoomSelectionDiv.style.height = '0px';
     } else {
 
-        if (e.target !== scrubber && e.target !== track) return;
-
+        //if (e.target !== scrubber && e.target !== track) return;      before part
+        if (!scrubber.contains(e.target)) return;
+        
         const usableHeight = rect.height - (TRACK_PADDING * 2);
         const offsetY = e.clientY - rect.top - TRACK_PADDING;
 
         let percentage = (offsetY / usableHeight) * 100;
         percentage = Math.max(0, Math.min(100, percentage));
 
-        createMarker(percentage);
+        const p = yToGlobalPercent(clickY);
+        createMarker(p);
 
         // --- NEW: Sync video time on click ---
         if (video.duration) {
@@ -296,23 +329,38 @@ async function pollJobStatus(jobId) {
 function finishOCRUI(data) {
 
     continueBtn.disabled = false;
-    continueBtn.textContent = "OCR Complete ✓";
+    continueBtn.textContent = "OCR Complete (Do Again?)";
     timestampList.innerHTML = "<h3>Analysis Complete</h3>";
     
     // Add Download Button with a little icon
-    const dlBtn = document.createElement('button');
-    dlBtn.innerHTML = "<span>📄</span> Download Result PDF"; // Added an icon
-    dlBtn.className = "download-style"; 
-    dlBtn.onclick = () => window.open(`http://127.0.0.1:5000${data.pdf_url}`);
-    
-    timestampList.appendChild(dlBtn);
+    const dlPdfBtn = document.createElement('button');
+    dlPdfBtn.innerHTML = `${PDF_SVG} Download Result PDF`; // Added an icon
+    dlPdfBtn.className = "download-style pdf-btn";
+    dlPdfBtn.style.marginBottom = "10px";
+    dlPdfBtn.onclick = () => window.open(`http://127.0.0.1:5000${data.pdf_url}`);
+    timestampList.appendChild(dlPdfBtn);
 
-    data.results.forEach(item => {
-        const div = document.createElement('div');
-        div.className = "result-item"; // Add CSS for this
-        div.innerHTML = `<strong>${item.timestamp}s:</strong> <p>${item.text}</p>`;
-        timestampList.appendChild(div);
-    });
+    // Add Download Button for DOCX
+    const dlDocBtn = document.createElement('button');
+    dlDocBtn.innerHTML = `${DOC_SVG} Download Result DOCX`; // Added an icon
+    dlDocBtn.className = "download-style doc-btn";
+    dlDocBtn.style.marginBottom = "10px";
+    dlDocBtn.onclick = () => window.open(`http://127.0.0.1:5000${data.doc_url}`);
+    timestampList.appendChild(dlDocBtn);
+
+    const card = document.createElement('div');
+    card.className = "ai-summary-card";
+    card.innerHTML = `
+        <div class="ai-label">
+            ${AI_ICON}
+            AI Document Insight
+        </div>
+        <div class="ai-text">
+            ${data.summary || "Summary could not be generated."}
+        </div>
+    `;
+    
+    timestampList.appendChild(card);
 }
 
 function resetContinueBtn() {
@@ -331,6 +379,7 @@ continueBtn.addEventListener('click', async (e) => {
     continueBtn.disabled = true;
     continueBtn.textContent = "Capturing...";
 
+    showAISummaryPlaceholder();
     const formData = new FormData();
     
     try {
@@ -360,6 +409,98 @@ continueBtn.addEventListener('click', async (e) => {
     }
 });
 
+async function runSmartSelector() {
+    const v = document.getElementById('Video');
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    
+    canvas.width = CONFIG.THUMB_W;
+    canvas.height = CONFIG.THUMB_H;
+
+    let prevThumb = null;
+    let lastSavedIdx = -CONFIG.COOLDOWN_FRAMES;
+    let frameIdx = 0;
+    
+    const totalFrames = Math.floor(v.duration * 25); // Estimate or use precise metadata
+    const frameStep = 1 / 25; // Assuming 25fps video
+
+    // Clear UI
+    markers = [];
+    scrubber.querySelectorAll('.thumbnailMarker').forEach(m => m.remove());
+
+    // Main Loop: Stepping through video precisely
+    while (frameIdx < totalFrames) {
+        
+        // Gate 0: Sampling skip
+        if (frameIdx % CONFIG.SAMPLE_EVERY !== 0) {
+            frameIdx++;
+            continue;
+        }
+
+        // Seek and wait for the frame to be ready
+        v.currentTime = frameIdx * frameStep;
+        await new Promise(r => v.onseeked = r);
+
+        // 1. Downsample to Thumbnail
+        ctx.drawImage(v, 0, 0, CONFIG.THUMB_W, CONFIG.THUMB_H);
+        const imageData = ctx.getImageData(0, 0, CONFIG.THUMB_W, CONFIG.THUMB_H);
+        const data = imageData.data;
+        
+        // 2. Single-pass calculation (Grayscale + Variance)
+        let sum = 0, sumSq = 0, diffSum = 0;
+        const currentThumb = new Uint8Array(CONFIG.THUMB_W * CONFIG.THUMB_H);
+
+        for (let i = 0; i < data.length; i += 4) {
+            // Fast grayscale: (R+G+B)/3
+            const g = (data[i] + data[i+1] + data[i+2]) / 3;
+            const pixelIdx = i / 4;
+            currentThumb[pixelIdx] = g;
+            
+            sum += g;
+            sumSq += g * g;
+
+            if (prevThumb) {
+                diffSum += Math.abs(g - prevThumb[pixelIdx]);
+            }
+        }
+
+        const n = currentThumb.length;
+        const variance = (sumSq / n) - Math.pow(sum / n, 2);
+        const frameDiff = prevThumb ? (diffSum / n) : 999;
+
+        // --- THE GATES (Python Logic) ---
+        
+        // Gate 1: Motion (Too high = turning, Too low = duplicate)
+        if (prevThumb && (frameDiff > CONFIG.MOTION_HIGH || frameDiff < CONFIG.MOTION_LOW)) {
+            prevThumb = currentThumb; // Update prev even if skipped to track motion
+            frameIdx++;
+            continue;
+        }
+
+        // Gate 2: Sharpness (Variance)
+        if (variance < CONFIG.SHARPNESS_MIN) {
+            frameIdx++;
+            continue;
+        }
+
+        // Gate 3: Cooldown
+        if (frameIdx - lastSavedIdx < CONFIG.COOLDOWN_FRAMES) {
+            frameIdx++;
+            continue;
+        }
+
+        // ALL GATES PASSED -> Save Marker
+        const percentage = (v.currentTime / v.duration) * 100;
+        createMarker(percentage);
+        
+        lastSavedIdx = frameIdx;
+        prevThumb = currentThumb;
+        frameIdx++;
+
+        // Update UI progress
+        dragMessage.textContent = `Analyzing: ${Math.round((frameIdx/totalFrames)*100)}%`;
+    }
+}
 // Drag & Drop video
 const app = document.querySelector('.app');
 
@@ -372,97 +513,6 @@ app.addEventListener('dragleave', () => {
     app.style.background = '';
 });
 
-
-
-// --- SHARPNESS CALCULATION HELPERS ---
-
-/**
- * Calculates Laplacian Variance of a frame to determine sharpness.
- * Higher value = sharper image.
- */
-async function getFrameSharpness(videoElement, time) {
-    return new Promise((resolve) => {
-        videoElement.currentTime = time;
-        
-        // Wait for frame to seek
-        videoElement.addEventListener('seeked', () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = videoElement.videoWidth / 4; // Downscale for speed
-            canvas.height = videoElement.videoHeight / 4;
-            
-            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            const width = imageData.width;
-            const height = imageData.height;
-
-            // Simple Laplacian Kernel: [0, 1, 0, 1, -4, 1, 0, 1, 0]
-            let laplacianSum = 0;
-            let laplacianSqSum = 0;
-            const pixelCount = width * height;
-
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    const idx = (y * width + x) * 4;
-                    // Greyscale conversion (standard weights)
-                    const val = data[idx] * 0.299 + data[idx+1] * 0.587 + data[idx+2] * 0.114;
-                    
-                    // Neighbors
-                    const up = (data[((y-1)*width + x)*4]) * 0.299;
-                    const down = (data[((y+1)*width + x)*4]) * 0.299;
-                    const left = (data[(y*width + (x-1))*4]) * 0.299;
-                    const right = (data[(y*width + (x+1))*4]) * 0.299;
-
-                    const lap = up + down + left + right - (4 * val);
-                    laplacianSum += lap;
-                    laplacianSqSum += (lap * lap);
-                }
-            }
-
-            // Variance = E[X^2] - (E[X])^2
-            const variance = (laplacianSqSum / pixelCount) - Math.pow(laplacianSum / pixelCount, 2);
-            resolve(variance);
-        }, { once: true });
-    });
-}
-
-/**
- * Auto-selects sharp frames every 2 seconds
- */
-async function autoSelectSharpFrames(threshold = 50) {
-    const duration = video.duration;
-    const interval = 2.0;
-    
-    // Clear existing markers
-    markers.forEach(m => scrubber.removeChild(m.element));
-    markers = [];
-
-    for (let t = 0; t < duration; t += interval) {
-        let bestTime = t;
-        let maxSharpness = await getFrameSharpness(video, t);
-
-        // If below threshold, check +/- 0.1s, then +/- 0.2s, up to +/- 0.5s
-        if (maxSharpness < threshold) {
-            console.log(`Frame at ${t}s blurry (${maxSharpness.toFixed(2)}). Searching...`);
-            const offsets = [0.1, -0.1, 0.2, -0.2, 0.3, -0.3, 0.4, -0.4, 0.5, -0.5];
-            
-            for (let offset of offsets) {
-                let checkTime = Math.max(0, Math.min(duration, t + offset));
-                let s = await getFrameSharpness(video, checkTime);
-                if (s > maxSharpness) {
-                    maxSharpness = s;
-                    bestTime = checkTime;
-                }
-                if (maxSharpness >= threshold) break; // Found a "good enough" frame
-            }
-        }
-
-        // Add marker at the best time found
-        const percentage = (bestTime / duration) * 100;
-        createMarker(percentage);
-    }
-}
 
 // --- UPDATED DROP EVENT ---
 
@@ -493,9 +543,77 @@ app.addEventListener('drop', async (e) => {
             dragMessage.textContent = "Analyzing video for sharp frames...";
             dragMessage.style.display = 'block';
     
-            await autoSelectSharpFrames(60); 
+            await runSmartSelector();
     
             dragMessage.style.display = 'none';
+
+            generateFilmstrip();
     }, { once: true });
     }
 });
+
+// Translates a click (Y pixel) to a global video percentage (0-100)
+function yToGlobalPercent(y) {
+    const rect = scrubber.getBoundingClientRect();
+    const localPercent = (y / rect.height) * 100;
+    return zoomStart + (localPercent / 100) * (zoomEnd - zoomStart);
+}
+
+// Translates a video percentage to a Y pixel coordinate for marker placement
+function globalPercentToY(globalP) {
+    const rect = scrubber.getBoundingClientRect();
+    const relativeP = ((globalP - zoomStart) / (zoomEnd - zoomStart)) * 100;
+    return (relativeP / 100) * rect.height;
+}
+
+async function generateFilmstrip() {
+    if (!video.duration) return;
+    track.innerHTML = ''; // Clear the old track line/images
+    
+    const L = scrubber.offsetHeight;
+    const d = 60; // Height of each frame slice in pixels
+    const numFrames = Math.ceil(L / d);
+    
+    // Set track to fill the scrubber
+    track.style.width = '100%';
+    track.style.left = '0';
+    track.style.transform = 'none';
+    track.style.display = 'flex';
+    track.style.flexDirection = 'column';
+
+    for (let i = 0; i < numFrames; i++) {
+        const yTop = i * d;
+        const globalP = yToGlobalPercent(yTop);
+        const time = (globalP / 100) * video.duration;
+        
+        // Capture a tiny low-res version for performance
+        const imgBlob = await captureFrameAsBlob(video, time); 
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(imgBlob);
+
+        img.draggable = false; // <--- ADD THIS LINE
+        img.style.userSelect = 'none'; // Prevents highlighting/selecting
+
+        img.style.height = `${d}px`;
+        img.style.width = '100%';
+        img.style.objectFit = 'cover';
+        track.appendChild(img);
+    }
+}
+
+function updateMarkerPosition(marker, globalPercentage) {
+    const y = globalPercentToY(globalPercentage);
+    marker.style.top = `${y}px`;
+    // Hide marker if it's outside the zoomed range
+    marker.style.display = (y < 0 || y > scrubber.offsetHeight) ? 'none' : 'flex';
+}
+
+function showAISummaryPlaceholder() {
+    timestampList.innerHTML = `
+        <div class="ai-summary-container">
+            ${AI_ICON}
+            <p><strong>AI Document Assistant</strong></p>
+            <p class="ai-description">Upload complete. I will summarize your document as soon as OCR is finished.</p>
+        </div>
+    `;
+}

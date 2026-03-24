@@ -1,2 +1,7 @@
 ocr_env/
 GOT-OCR2.0/
+uploads/
+Extracted/
+scanner.ipynb/
+diagnose.py/
+ocr.py
