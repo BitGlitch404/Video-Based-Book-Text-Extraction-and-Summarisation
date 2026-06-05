@@ -1,8 +1,16 @@
 # Video-Based Text Extraction & Document Synthesis System
 
-An intelligent desktop multimedia analysis suite designed to automatically process instructional videos (e.g., recorded slideshow presentation lectures, tutorials) and extract structured textual assets. 
+<img width="1918" height="874" alt="Screenshot 2026-06-05 100221" src="https://github.com/user-attachments/assets/b9fcc309-b813-4758-b9dc-55680d31a844" />
+
+An intelligent desktop multimedia analysis suite designed to automatically process instructional videos (e.g., recorded slideshow presentation lectures, tutorials) and extract structured textual assets.
+
+<img width="1915" height="872" alt="Screenshot 2026-06-05 100340" src="https://github.com/user-attachments/assets/71b90ff0-80d9-4456-b8d7-e56a681159d9" /> 
 
 The application utilizes a lightweight frontend computer vision pipeline via the browser canvas API to identify layout state changes, delivers frame arrays asynchronously to a Python Flask API, and translates graphical text data into downloadable, structured document formats paired with an NLP-driven summarization brief.
+
+<img width="1913" height="874" alt="Screenshot 2026-06-05 100414" src="https://github.com/user-attachments/assets/9a56fc5d-d687-46f8-936c-0ebe67dcfaa5" />
+
+<img width="1899" height="886" alt="Screenshot 2026-06-05 100554" src="https://github.com/user-attachments/assets/50c174f1-d0ec-4fff-b01f-79efa85d61ae" />
 
 > **Academic Project Note:** This software suite was developed as an academic engineering prototype. It serves to explore the intersections of client-side video frame metrics, local Optical Character Recognition (OCR), layout-aware document modeling, and localized text summarization.
 
